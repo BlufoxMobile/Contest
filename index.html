@@ -56,7 +56,12 @@ body{
 .drop h3{margin:8px 0 4px;font-size:1.02rem}
 .drop p{color:var(--text-secondary);font-size:.85rem}
 .drop .fname{color:var(--money-green);font-weight:700;font-size:.85rem;margin-top:8px;word-break:break-all}
-.drop input{display:none}
+.drop .hint{color:var(--text-secondary);font-size:.78rem;margin-top:4px;opacity:.8}
+.drop input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0)}
+.choose{margin-top:14px;display:inline-block;padding:10px 22px;border-radius:10px;font-weight:800;font-size:.9rem;
+  cursor:pointer;color:#fff;border:0;background:linear-gradient(90deg,var(--xfinity-purple),var(--xfinity-violet));
+  box-shadow:0 4px 16px rgba(97,56,245,.45);transition:.16s}
+.choose:hover{transform:translateY(-1px);box-shadow:0 7px 20px rgba(151,71,255,.55)}
 .go{display:block;width:100%;margin-top:4px;padding:16px;border:0;border-radius:14px;font-size:1.05rem;font-weight:800;
   letter-spacing:.5px;cursor:pointer;color:#fff;background:linear-gradient(90deg,var(--xfinity-purple),var(--xfinity-violet));
   box-shadow:0 8px 26px rgba(97,56,245,.5);transition:.18s;text-transform:uppercase}
@@ -158,20 +163,24 @@ body{
   <!-- UPLOAD -->
   <div id="uploadView">
     <div class="uploader">
-      <label class="drop" id="dropRGU">
+      <div class="drop" id="dropRGU">
         <div class="ic">📊</div>
         <h3>Rep RGU File</h3>
         <p>Sales report — Xfinity Mobile + Watches per rep</p>
+        <button type="button" class="choose" id="btnRGU">📁 Choose File</button>
+        <div class="hint">or drag the .xlsx here</div>
         <div class="fname" id="nameRGU"></div>
-        <input type="file" id="fileRGU" accept=".xlsx,.xls">
-      </label>
-      <label class="drop" id="dropTC">
+        <input type="file" id="fileRGU" accept=".xlsx,.xls,.csv">
+      </div>
+      <div class="drop" id="dropTC">
         <div class="ic">⏱️</div>
         <h3>Time Card Punch File</h3>
         <p>Punch in/out log — hours clocked per rep</p>
+        <button type="button" class="choose" id="btnTC">📁 Choose File</button>
+        <div class="hint">or drag the .xlsx here</div>
         <div class="fname" id="nameTC"></div>
-        <input type="file" id="fileTC" accept=".xlsx,.xls">
-      </label>
+        <input type="file" id="fileTC" accept=".xlsx,.xls,.csv">
+      </div>
     </div>
     <button class="go" id="goBtn" disabled>Build The Leaderboard 🏁</button>
     <div class="err" id="errBox"></div>
@@ -218,17 +227,29 @@ body{
 const files = {rgu:null, tc:null};
 const $ = id => document.getElementById(id);
 
-function wireDrop(dropId, inputId, nameId, key){
-  const drop=$(dropId), input=$(inputId), nm=$(nameId);
+function wireDrop(dropId, inputId, nameId, btnId, key){
+  const drop=$(dropId), input=$(inputId), nm=$(nameId), btn=$(btnId);
+  const open=e=>{ if(e){e.preventDefault();e.stopPropagation();} input.click(); };
+  btn.addEventListener('click',open);
+  drop.addEventListener('click',e=>{ if(e.target===input) return; open(e); });
   input.addEventListener('change',e=>{ if(e.target.files[0]) setFile(e.target.files[0]); });
-  ['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag');}));
-  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag');}));
-  drop.addEventListener('drop',e=>{ if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
+  ['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();drop.classList.add('drag');}));
+  ['dragleave','dragend'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('drag');}));
+  drop.addEventListener('drop',e=>{ e.preventDefault();e.stopPropagation();drop.classList.remove('drag'); if(e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); });
   function setFile(f){ files[key]=f; nm.textContent='✓ '+f.name; drop.classList.add('loaded'); checkReady(); }
 }
-wireDrop('dropRGU','fileRGU','nameRGU','rgu');
-wireDrop('dropTC','fileTC','nameTC','tc');
+wireDrop('dropRGU','fileRGU','nameRGU','btnRGU','rgu');
+wireDrop('dropTC','fileTC','nameTC','btnTC','tc');
 function checkReady(){ $('goBtn').disabled = !(files.rgu && files.tc); }
+// Surface library-load problems instead of silently failing
+window.addEventListener('load',()=>{
+  if(typeof XLSX==='undefined'){
+    const e=$('errBox'); e.textContent='⚠️ The spreadsheet engine failed to load (network/CDN blocked). Connect to the internet and refresh, or open the file locally.'; e.style.display='block';
+  }
+});
+window.addEventListener('error',ev=>{
+  const e=$('errBox'); if(e){ e.textContent='⚠️ '+(ev.message||'Unexpected error'); e.style.display='block'; }
+});
 
 /* ---------- helpers ---------- */
 const norm = s => String(s==null?'':s).trim().replace(/\s+/g,' ').toLowerCase();
@@ -251,7 +272,7 @@ function colIndex(header, ...needles){
 function readWorkbook(file){
   return new Promise((res,rej)=>{
     const r=new FileReader();
-    r.onload=e=>{ try{ res(XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true}); }catch(err){rej(err);} };
+    r.onload=e=>{ try{ res(XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true})); }catch(err){rej(err);} };
     r.onerror=rej; r.readAsArrayBuffer(file);
   });
 }
